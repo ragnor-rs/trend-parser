@@ -22,7 +22,7 @@ A Telegram bot that provides insights about design trends by analyzing data from
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/ragnor-rs/trend-parser.git
 cd trend-parser
 ```
 
@@ -46,9 +46,14 @@ cp .env.example .env
 python bot.py
 ```
 
-2. Run the scraper (in a separate terminal):
+2. Run the scraper (in a separate terminal). For a single pass:
 ```bash
-python scheduler.py
+python scraper.py
+```
+
+Or as a long-running service that scrapes on startup and then daily:
+```bash
+python scraper-server.py
 ```
 
 ## Deployment to Google Cloud
@@ -91,6 +96,16 @@ gcloud builds submit --config cloudbuild.yaml
 4. Push to the branch
 5. Create a Pull Request
 
+## Disclaimer
+
+This project scrapes publicly available articles from TrendHunter.com and is intended
+for personal and educational use. It is not affiliated with or endorsed by TrendHunter.
+
+If you run it, you are responsible for complying with TrendHunter's Terms of Service and
+`robots.txt`, and for keeping your request volume reasonable. The scraped articles remain
+the property of their respective owners — the MIT license below covers this project's
+source code only, not any content it retrieves.
+
 ## License
 
-MIT License
+Released under the [MIT License](LICENSE).
