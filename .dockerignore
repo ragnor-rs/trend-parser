@@ -1,0 +1,15 @@
+# Keep local credentials out of the image: the Dockerfiles COPY the whole tree,
+# and secrets are supplied as environment variables at run time instead.
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+*.log
+venv/
+.venv/
+.idea/
+.vscode/

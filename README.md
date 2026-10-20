@@ -30,18 +30,20 @@ the current design:
 ## Features
 
 - Daily scraping of design trends from TrendHunter.com
-- Vector storage of trend data using Pinecone, with `date` metadata per article
-- Natural language querying of trends by topic, month, and year
+- Vector storage of trend data using Pinecone, with publication date metadata per article
+- Natural language querying of trends by topic, month, and year, filtered by date in the
+  vector query itself
 - Retrieval Augmented Generation (RAG), with sources cited in the answer
 - Month names accepted in any language (translated to English before parsing)
 - Deployed on Google Cloud Run
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.10+
 - Telegram Bot Token (from [@BotFather](https://t.me/botfather))
 - OpenAI API Key
-- Pinecone API Key and an index sized for `text-embedding-3-large` (3072 dimensions)
+- Pinecone API Key. You do not need to create the index yourself — it is created on first
+  run, sized for whichever embedding model is configured.
 - Google Cloud Project (only if deploying)
 
 ## Setup
@@ -65,14 +67,14 @@ cp .env.example .env
 # Edit .env with your actual credentials
 ```
 
+Only the four variables under `# --- Required ---` need values. The optional ones have
+working defaults; override `ANSWER_MODEL` / `TRANSLATION_MODEL` / `EMBEDDING_MODEL` if your
+OpenAI account does not have access to the defaults.
+
 ## Local Development
 
-1. Run the bot:
-```bash
-python bot.py
-```
-
-2. Run the scraper (in a separate terminal). For a single pass:
+1. Populate the index first — the bot has nothing to answer from until the scraper has run
+   at least once. For a single pass:
 ```bash
 python scraper.py
 ```
@@ -82,8 +84,13 @@ Or as a long-running service that scrapes on startup and then daily:
 python scraper-server.py
 ```
 
-Note that the bot has nothing to answer from until the scraper has populated the index at
-least once.
+2. Run the bot:
+```bash
+python bot.py
+```
+
+Then message the bot on Telegram. Because the scraper reads TrendHunter's RSS feed, a fresh
+index only holds the ~30 most recent articles, so query the current month.
 
 ## Usage
 
@@ -131,37 +138,38 @@ is deliberate and prompted for.
 ## Architecture
 
 - **Bot Service** (`bot.py`, `bot-server.py`): handles Telegram interactions, embeds the
-  query with `text-embedding-3-large`, retrieves from Pinecone, and answers with
-  `gpt-4-turbo-preview`. A `gpt-3.5-turbo` call translates non-English month names.
-- **Scraper Service** (`scraper.py`, `scraper-server.py`): collects articles linked from
-  the TrendHunter homepage, extracts content, themes, and publication date, and upserts
-  embeddings plus metadata into Pinecone. Runs on startup and then daily.
-- **Vector Database**: Pinecone, storing trend embeddings alongside `date`, `content`,
-  `themes`, and `url` metadata.
+  query with `text-embedding-3-large`, retrieves from Pinecone filtered to the requested
+  month, and answers with `gpt-4o`. A `gpt-4o-mini` call translates non-English month
+  names.
+- **Scraper Service** (`scraper.py`, `scraper-server.py`): discovers articles from
+  TrendHunter's RSS feed, reads content, themes, and publication date from each article
+  page, and upserts embeddings plus metadata into Pinecone. Runs on startup and then daily.
+- **Vector Database**: Pinecone, storing trend embeddings alongside `date`, `year`,
+  `month`, `content`, `themes`, and `url` metadata. `year` and `month` are stored as
+  numbers so the date filter can be applied inside the query.
+- **Shared Config** (`config.py`): credential validation, model selection, and index
+  creation, used by both services.
 
 ## Known Limitations
 
-- **Date filtering happens after retrieval, not during it.** The bot asks Pinecone for the
-  top 5 semantic matches and *then* discards those outside the requested month. If none of
-  the top 5 fall in that month, you get "no relevant trends" even when the index does hold
-  matching articles. This is the most common cause of a disappointing answer. Filtering via
-  Pinecone metadata query instead would fix it.
-- **Coverage is limited to the TrendHunter homepage.** The scraper only follows links
-  present on the front page at scrape time, so anything that scrolled off between daily
-  runs is never indexed. TrendHunter was the first of roughly ten candidate trend sources;
-  the rest were never implemented.
+- **Coverage is limited to the RSS feed.** The feed carries roughly the 30 most recent
+  articles, so the index only accumulates history for as long as the scraper keeps running
+  daily; anything published between runs and pushed off the feed is never indexed. There is
+  no backfill. TrendHunter was the first of roughly ten candidate trend sources; the rest
+  were never implemented.
 - **Queries must end in `month year`.** There's no general date parsing — "last spring" or
   a bare topic won't work.
-- **`bot-server.py` has an unreachable scheduler loop.** `app.run()` blocks before the
-  `while True` beneath it, so that loop never executes.
-- **`pinecone-client` is deprecated** in favour of the `pinecone` package; the pin here
-  still installs but will eventually need updating.
+- **The month filter is exact.** A query for a month with nothing indexed returns "no
+  relevant trends" rather than widening to nearby months.
 - **Both Cloud Run services deploy with `--allow-unauthenticated`.** Only a health-check
   endpoint is exposed, but tighten this if you adapt the config.
+- **The scraper depends on TrendHunter's page structure.** Content and themes come from CSS
+  selectors against the article pages, which break whenever the site is redesigned — as
+  happened when the homepage became a client-side app and the original homepage scraping
+  stopped returning anything at all.
 
 ## Possible Improvements
 
-- Filter by date in the Pinecone query rather than after retrieval
 - Add the remaining trend sources beyond TrendHunter
 - Follow pagination/archives so backfill isn't limited to the homepage
 - Consider letting the model read arbitrary sites directly instead of maintaining a
