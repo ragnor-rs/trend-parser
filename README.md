@@ -35,7 +35,6 @@ the current design:
   vector query itself
 - Retrieval Augmented Generation (RAG), with sources cited in the answer
 - Month names accepted in any language (translated to English before parsing)
-- Deployed on Google Cloud Run
 
 ## Prerequisites
 
@@ -44,7 +43,6 @@ the current design:
 - OpenAI API Key
 - Pinecone API Key. You do not need to create the index yourself — it is created on first
   run, sized for whichever embedding model is configured.
-- Google Cloud Project (only if deploying)
 
 ## Setup
 
@@ -137,7 +135,7 @@ is deliberate and prompted for.
 
 ## Architecture
 
-- **Bot Service** (`bot.py`, `bot-server.py`): handles Telegram interactions, embeds the
+- **Bot Service** (`bot.py`): handles Telegram interactions, embeds the
   query with `text-embedding-3-large`, retrieves from Pinecone filtered to the requested
   month, and answers with `gpt-4o`. A `gpt-4o-mini` call translates non-English month
   names.
@@ -161,8 +159,9 @@ is deliberate and prompted for.
   a bare topic won't work.
 - **The month filter is exact.** A query for a month with nothing indexed returns "no
   relevant trends" rather than widening to nearby months.
-- **Both Cloud Run services deploy with `--allow-unauthenticated`.** Only a health-check
-  endpoint is exposed, but tighten this if you adapt the config.
+- **There is no deployment config.** Both services are plain long-running processes; the
+  two Dockerfiles build them, but choosing a host, supplying the environment variables, and
+  keeping the containers restarted is left to you.
 - **The scraper depends on TrendHunter's page structure.** Content and themes come from CSS
   selectors against the article pages, which break whenever the site is redesigned — as
   happened when the homepage became a client-side app and the original homepage scraping
